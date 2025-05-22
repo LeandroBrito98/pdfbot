@@ -8,3 +8,4 @@ Um serviço simples baseado em FastAPI para transformar fotos em arquivos PDF. I
 
 ```bash
 pip install -r requirements.txt
+
