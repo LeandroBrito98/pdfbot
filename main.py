@@ -1,58 +1,50 @@
-from fastapi import FastAPI, File, UploadFile, Request
-from fastapi.responses import FileResponse, HTMLResponse
-from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
-from fastapi.middleware.cors import CORSMiddleware
-import img2pdf
+from flask import Flask, render_template, request, send_file
+from werkzeug.utils import secure_filename
+from fpdf import FPDF
 import os
-from datetime import datetime
+from PIL import Image
+import io
 
-app = FastAPI()
+app = Flask(__name__)
+app.config['UPLOAD_FOLDER'] = 'uploads'
 
-# CORS Middleware (necessário caso queira expor para outras origens futuramente)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # ou especifique ["http://127.0.0.1:5500"] etc.
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+@app.route('/')
+def landing():
+    return render_template('landing.html')
 
-# Diretório onde os arquivos temporários serão armazenados
-UPLOAD_DIR = "uploads"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+@app.route('/index')
+def index():
+    return render_template('index.html')
 
-# Diretório de templates HTML
-templates = Jinja2Templates(directory="templates")
+@app.route('/convert', methods=['POST'])
+def convert():
+    if 'files' not in request.files:
+        return "Nenhum arquivo enviado", 400
 
-# Página principal do WebApp (interface para gerar PDF)
-@app.get("/", response_class=HTMLResponse)
-async def read_root(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+    files = request.files.getlist('files')
+    if not files:
+        return "Nenhum arquivo selecionado", 400
 
-# Página da landing comercial
-@app.get("/landing", response_class=HTMLResponse)
-async def show_landing(request: Request):
-    return templates.TemplateResponse("landing.html", {"request": request})
+    pdf = FPDF()
+    pdf.set_auto_page_break(0)
 
-# Endpoint que converte imagens para PDF
-@app.post("/convert/")
-async def convert_images_to_pdf(files: list[UploadFile] = File(...)):
-    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-    pdf_path = f"{UPLOAD_DIR}/converted_{timestamp}.pdf"
-    
-    image_paths = []
     for file in files:
-        file_path = f"{UPLOAD_DIR}/{timestamp}_{file.filename}"
-        with open(file_path, "wb") as f:
-            content = await file.read()
-            f.write(content)
-        image_paths.append(file_path)
-    
-    with open(pdf_path, "wb") as f:
-        f.write(img2pdf.convert(image_paths))
+        filename = secure_filename(file.filename)
+        image = Image.open(file.stream)
+        image_rgb = image.convert('RGB')
+        temp_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        image_rgb.save(temp_path)
+        pdf.add_page()
+        pdf.image(temp_path, x=10, y=10, w=190)
+        os.remove(temp_path)
 
-    for img in image_paths:
-        os.remove(img)
-        
-    return FileResponse(pdf_path, media_type="application/pdf", filename=os.path.basename(pdf_path))
+    pdf_output = io.BytesIO()
+    pdf.output(pdf_output)
+    pdf_output.seek(0)
+
+    return send_file(pdf_output, mimetype='application/pdf', as_attachment=True, download_name='arquivo.pdf')
+
+if __name__ == '__main__':
+    if not os.path.exists(app.config['UPLOAD_FOLDER']):
+        os.makedirs(app.config['UPLOAD_FOLDER'])
+    app.run(host='127.0.0.1', port=5000, debug=True)
