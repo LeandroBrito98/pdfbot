@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gerador de PDF</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 40px;
+      background-color: #f8f9fa;
+    }
+    h1 {
+      color: #333;
+    }
+    input[type="file"] {
+      margin: 20px 0;
+    }
+    #downloadLink {
+      margin-top: 20px;
+      display: none;
+    }
+    button {
+      padding: 10px 20px;
+      background-color: #0066ff;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    button:disabled {
+      background-color: #aaa;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Transforme suas fotos em PDF</h1>
+  <input type="file" id="fileInput" multiple accept="image/*" />
+  <br />
+  <button onclick="uploadFiles()">Gerar PDF</button>
+
+  <div id="downloadLink">
+    <p>PDF gerado com sucesso!</p>
+    <a id="pdfLink" href="#" download="arquivo.pdf">Clique aqui para baixar</a>
+  </div>
+
+  <script>
+    async function uploadFiles() {
+      const input = document.getElementById("fileInput");
+      const files = input.files;
+
+      if (files.length === 0) {
+        alert("Por favor, selecione ao menos uma imagem.");
+        return;
+      }
+
+      const formData = new FormData();
+      for (let file of files) {
+        formData.append("files", file);
+      }
+
+      try {
+        const response = await fetch("http://127.0.0.1:8000/convert/", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!response.ok) {
+          throw new Error("Erro ao gerar PDF.");
+        }
+
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        document.getElementById("pdfLink").href = url;
+        document.getElementById("downloadLink").style.display = "block";
+      } catch (error) {
+        alert("Erro: " + error.message);
+      }
+    }
+  </script>
+
+</body>
+</html>
